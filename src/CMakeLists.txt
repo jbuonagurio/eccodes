@@ -428,6 +428,9 @@ if(HAVE_MEMFS)
     list(APPEND ECCODES_EXTRA_LIBRARIES eccodes_memfs)
 endif()
 
+if(HAVE_CURL)
+    list(APPEND ECCODES_EXTRA_LIBRARIES ${CURL_LIBRARIES})
+endif()
 
 ecbuild_add_library(TARGET    eccodes
                     SOURCES   grib_api_version.c

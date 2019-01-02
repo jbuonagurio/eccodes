@@ -40,6 +40,9 @@
  }
 #endif
 
+#ifdef HAVE_CURL
+ #include <curl/curl.h>
+#endif
 
 #define  GRIB 0x47524942
 #define  BUDG 0x42554447
@@ -1678,3 +1681,477 @@ int grib_count_in_filename(grib_context* c, const char* filename, int* n)
     fclose(fp);
     return err;
 }
+
+/*****************************************************************************
+ *
+ * This following code implements a buffered I/O interface to URL reads using
+ * libcurl. Based on example "fopen.c" in libcurl sources, with additions to
+ * support fseek using range requests.
+ *
+ * Copyright (c) 2003, 2017 Simtec Electronics
+ *
+ * Re-implemented by Vincent Sanders <vince@kyllikki.org> with extensive
+ * reference to original curl example code
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * This example requires libcurl 7.9.7 or later.
+ */
+
+#ifdef HAVE_CURL
+
+#ifdef _WIN32
+#define WAITMS(x) Sleep(x)
+#else
+/* Portable sleep for platforms other than Windows. */
+#define WAITMS(x)                               \
+  struct timeval wait = { 0, (x) * 1000 };      \
+  (void)select(0, NULL, NULL, NULL, &wait);
+#endif // _WIN32
+ 
+typedef struct url_struct {
+    CURL *handle;               /* libcurl handle */
+    char *buffer;               /* buffer to store cached data */
+    size_t buffer_len;          /* currently allocated buffers length */
+    size_t buffer_pos;          /* end of data in buffer */
+    off_t stream_len;           /* content length */
+    off_t stream_pos;           /* current position in content */
+    int still_running;          /* background url fetch still in progress */
+    int allow_range;            /* server allows range transfers */
+} url_struct;
+
+static CURLM *url_multi_handle;
+
+/* called when header data is received */
+static size_t url_header_callback(char *buffer, size_t size, size_t nitems, void *userp)
+{
+    url_struct *us = (url_struct *)userp;
+    size_t realsize = size * nitems;
+
+    /* determine if range transfers are allowed */
+    const char *accept_line = "Accept-Ranges: bytes";
+    if (realsize >= strlen(accept_line)
+        && strncmp(buffer, accept_line, strlen(accept_line)) == 0) {
+        us->allow_range = 1;
+    }
+  
+    return realsize;
+}
+
+/* called when data is received */
+static size_t url_write_callback(char *buffer, size_t size, size_t nitems, void *userp)
+{
+  char *newbuff;
+  size_t rembuff;
+
+  url_struct *us = (url_struct *)userp;
+  size_t realsize = size * nitems;
+
+  rembuff = us->buffer_len - us->buffer_pos; /* remaining space in buffer */
+
+  if (realsize > rembuff) {
+    /* not enough space in buffer */
+    newbuff = realloc(us->buffer, us->buffer_len + (realsize - rembuff));
+    if (newbuff == NULL) {
+      /* fprintf(stderr, "callback buffer grow failed\n"); */
+      realsize = rembuff;
+    }
+    else {
+      /* realloc succeeded - increase buffer size*/
+      us->buffer_len += realsize - rembuff;
+      us->buffer = newbuff;
+    }
+  }
+
+  memcpy(&us->buffer[us->buffer_pos], buffer, realsize);
+  us->buffer_pos += realsize;
+  
+  return realsize;
+}
+
+/* attempt to fill the read buffer up to requested number of bytes */
+static int url_fill_buffer(url_struct *us, size_t n)
+{
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    struct timeval timeout;
+    int rc;
+    CURLMcode mc; /* curl_multi_fdset() return code */
+
+    /* only attempt to fill buffer if transactions still running and buffer
+     * doesn't exceed required size already
+     */
+    if ((!us->still_running) || (us->buffer_pos > n))
+        return 0;
+
+    /* attempt to fill buffer */
+    do {
+        int maxfd = -1;
+        long curl_timeo = -1;
+
+        FD_ZERO(&fdread);
+        FD_ZERO(&fdwrite);
+        FD_ZERO(&fdexcep);
+
+        /* set a suitable timeout to fail on */
+        timeout.tv_sec = 30; /* 30 seconds */
+        timeout.tv_usec = 0;
+
+        curl_multi_timeout(url_multi_handle, &curl_timeo);
+        if (curl_timeo >= 0) {
+            timeout.tv_sec = curl_timeo / 1000;
+            if (timeout.tv_sec > 1)
+                timeout.tv_sec = 1;
+            else
+                timeout.tv_usec = (curl_timeo % 1000) * 1000;
+        }
+
+        /* get file descriptors from the transfers */
+        mc = curl_multi_fdset(url_multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+        if (mc != CURLM_OK) {
+            /* fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc); */
+            break;
+        }
+
+        /* On success the value of maxfd is guaranteed to be >= -1. We call
+         * select(maxfd + 1, ...); specially in case of (maxfd == -1) there are
+         * no fds ready yet so we call select(0, ...) --or Sleep() on Windows--
+         * to sleep 100ms, which is the minimum suggested value in the
+         * curl_multi_fdset() doc.
+         */
+        if (maxfd == -1) {
+            WAITMS(100);
+        }
+        else {
+            /* Note that on some platforms 'timeout' may be modified by select().
+               If you need access to the original value save a copy beforehand. */
+            rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
+        }
+
+        switch(rc) {
+        case -1:
+            /* select error */
+            break;
+        case 0:
+        default:
+            /* timeout or readable/writable sockets */
+            curl_multi_perform(url_multi_handle, &us->still_running);
+            break;
+        }
+    } while (us->still_running && (us->buffer_pos < n));
+    
+    return 1;
+}
+
+/* remove n bytes from the front of a buffer */
+static int url_use_buffer(url_struct *us, size_t n)
+{
+    if ((us->buffer_pos - n) <= 0) {
+        /* clear buffer - write will recreate */
+        free(us->buffer);
+        us->buffer = NULL;
+        us->buffer_pos = 0;
+        us->buffer_len = 0;
+    }
+    else {
+        /* move remaining bytes to the front */
+        memmove(us->buffer,
+                &us->buffer[n],
+                (us->buffer_pos - n));
+
+        us->buffer_pos -= n;
+    }
+    return 0;
+}
+
+url_struct *url_open(const char *url)
+{
+    url_struct *us;
+
+    us = calloc(1, sizeof(url_struct));
+    if (!us)
+        return NULL;
+
+    us->handle = curl_easy_init();
+    
+    /* send HEAD request to initialize header data */
+    curl_easy_setopt(us->handle, CURLOPT_URL, url);
+    curl_easy_setopt(us->handle, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(us->handle, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(us->handle, CURLOPT_HEADERDATA, us);
+    curl_easy_setopt(us->handle, CURLOPT_HEADERFUNCTION, url_header_callback);
+    
+    CURLcode rc;
+    rc = curl_easy_perform(us->handle);
+    if (rc == CURLE_OK) {
+        curl_off_t cl;
+        curl_easy_getinfo(us->handle, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &cl);
+        if (cl > 0) {
+            us->stream_len = (off_t)cl;
+        }
+    }
+    
+    /* reset the handle for data transfer */
+    curl_easy_reset(us->handle);
+    curl_easy_setopt(us->handle, CURLOPT_URL, url);
+    curl_easy_setopt(us->handle, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(us->handle, CURLOPT_WRITEDATA, us);
+    curl_easy_setopt(us->handle, CURLOPT_WRITEFUNCTION, url_write_callback);
+    
+    /* initialize the global multi handle on first call */
+    if (!url_multi_handle)
+        url_multi_handle = curl_multi_init();
+    
+    curl_multi_add_handle(url_multi_handle, us->handle);
+
+    /* start non-blocking transfers */
+    curl_multi_perform(url_multi_handle, &us->still_running);
+    
+    /* if still_running is 0 now, cleanup and set NULL */
+    if ((us->buffer_pos == 0) && (!us->still_running)) {
+        curl_multi_remove_handle(url_multi_handle, us->handle);
+        curl_easy_cleanup(us->handle);
+        free(us);
+        us = NULL;
+    }
+  
+    return us;
+}
+
+int url_close(url_struct *us)
+{
+    /* wait for pending transfers */
+    url_fill_buffer(us, 0L);
+    if (us->still_running)
+        return 1;
+
+    /* make sure the easy handle is not in the multi handle anymore */
+    curl_multi_remove_handle(url_multi_handle, us->handle);
+
+    /* cleanup */
+    curl_easy_cleanup(us->handle);
+    free(us->buffer);
+    free(us);
+
+    return 0; /* OK */
+}
+
+void url_rewind(url_struct *us)
+{
+    /* halt transaction */
+    curl_multi_remove_handle(url_multi_handle, us->handle);
+
+    /* clear buffer and stream pos */
+    free(us->buffer);
+    us->buffer = NULL;
+    us->buffer_pos = 0;
+    us->buffer_len = 0;
+    us->stream_pos = 0;
+
+    /* set range to beginning */
+    if (us->allow_range) {
+        curl_easy_setopt(us->handle, CURLOPT_RESUME_FROM_LARGE, 0L); 
+    }
+
+    /* restart transaction */
+    curl_multi_add_handle(url_multi_handle, us->handle);
+}
+
+int url_eof(url_struct *us)
+{
+    if ((us->buffer_pos == 0) && (!us->still_running))
+        return 1;
+    
+    return 0; /* OK */
+}
+
+off_t url_tell(void* data)
+{
+    url_struct *us = (url_struct*)data;
+    if (us == NULL) {
+        errno = GRIB_IO_PROBLEM;
+        return -1;
+    }
+    return us->stream_pos;
+}
+
+int url_seek_internal(url_struct *us, off_t offset, int whence)
+{
+    /* calculate the new start position */
+    curl_off_t pos = us->stream_pos;
+
+    if (whence == SEEK_SET) {
+        pos = offset;
+    }
+    else if (whence == SEEK_CUR) {
+        pos = us->stream_pos + offset;
+    }
+    else if (whence == SEEK_END) {
+        pos = us->stream_len + offset;
+    }
+    
+    /* ensure position is positive */
+    if (pos < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    if (us->allow_range) {
+        /* halt transaction */
+        curl_multi_remove_handle(url_multi_handle, us->handle);
+
+        /* clear the buffer */
+        free(us->buffer);
+        us->buffer = NULL;
+        us->buffer_pos = 0;
+        us->buffer_len = 0;
+
+        /* enable range transfer */
+        curl_easy_setopt(us->handle, CURLOPT_RESUME_FROM_LARGE, pos);
+
+        /* restart transaction */
+        curl_multi_add_handle(url_multi_handle, us->handle);
+    }
+    else {
+        /* range transfer disabled */
+        /* TODO: reuse existing buffer to improve efficiency */
+        url_rewind(us);
+        url_fill_buffer(us, (size_t)pos);
+        url_use_buffer(us, (size_t)pos);  
+    }
+    
+    us->stream_pos = (off_t)pos;
+
+    return 0; /* OK */
+}
+
+int url_seek(void *data, off_t len)
+{
+    url_struct *us = (url_struct*)data;
+    int err = 0;
+    if (url_seek_internal(us, len, SEEK_CUR)) err = GRIB_IO_PROBLEM;
+    return err;
+}
+
+int url_seek_from_start(void *data, off_t len)
+{
+    url_struct *us = (url_struct*)data;
+    int err=0;
+    if (url_seek_internal(us, len, SEEK_SET)) err = GRIB_IO_PROBLEM;
+    return err;
+}
+
+size_t url_read_internal(void *ptr, size_t size, size_t count, url_struct *us)
+{
+    size_t realsize = count * size;
+    
+    url_fill_buffer(us, realsize);
+
+    /* check if there's data in the buffer - if not fill_buffer()
+     * either errored or EOF */
+    if (!us->buffer_pos)
+    return 0;
+
+    /* ensure only available data is considered */
+    if (us->buffer_pos < realsize)
+        realsize = us->buffer_pos;
+
+    /* xfer data to caller */
+    if (ptr)
+        memcpy(ptr, us->buffer, realsize);
+
+    url_use_buffer(us, realsize);
+    us->stream_pos += realsize;
+
+    size_t nitems = realsize / size; /* number of items */
+
+    return nitems;
+}
+
+size_t url_read(void *data, void *buf, size_t len, int *err)
+{
+    url_struct *us = (url_struct*)data;
+    size_t n;
+
+    if (len == 0) return 0;
+
+    n = url_read_internal(buf, 1, len, us);
+    
+    if (n != len) {
+        if (url_eof(us))
+            *err = GRIB_END_OF_FILE;
+        else
+            *err = GRIB_IO_PROBLEM;
+    }
+    
+    return n;
+}
+
+/*================== */
+
+static void *_wmo_read_any_from_url_malloc(void *us, int *err, size_t *size, off_t *offset,
+        int grib_ok, int bufr_ok, int hdf5_ok, int wrap_ok, int headers_only)
+{
+    alloc_buffer u;
+    reader       r;
+
+    u.buffer       = NULL;
+    u.size         = 0;
+
+    r.message_size    = 0;
+    r.read_data       = us;
+    r.read            = &url_read;
+    r.seek            = &url_seek;
+    r.seek_from_start = &url_seek_from_start;
+    r.tell            = &url_tell;
+    r.alloc_data      = &u;
+    r.alloc           = &allocate_buffer;
+    r.headers_only    = headers_only;
+    r.offset          = 0;
+
+    *err           = read_any(&r, grib_ok, bufr_ok, hdf5_ok, wrap_ok);
+
+    *size          = r.message_size;
+    *offset        = r.offset;
+
+    return u.buffer;
+}
+
+void *wmo_read_any_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int* err)
+{
+    return _wmo_read_any_from_url_malloc(us, err, size, offset, 1, 1, 1, 1, headers_only);
+}
+
+void *wmo_read_grib_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int* err)
+{
+    return _wmo_read_any_from_url_malloc(us, err, size, offset, 1, 0, 0, 0, headers_only);
+}
+
+void *wmo_read_bufr_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int* err)
+{
+    return _wmo_read_any_from_url_malloc(us, err, size, offset, 0, 1, 0, 0, headers_only);
+}
+
+#endif // HAVE_CURL

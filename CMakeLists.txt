@@ -113,6 +113,12 @@ ecbuild_add_option( FEATURE FORTRAN
     # REQUIRED_LANGUAGES Fortran # TODO
 )
 
+ecbuild_add_option( FEATURE CURL
+    DESCRIPTION "Support for network I/O with libcurl"
+    DEFAULT OFF
+    REQUIRED_PACKAGES CURL
+)
+
 # TODO Remove this after REQUIRED_LANGUAGES
 if( ENABLE_FORTRAN )
     # will set EC_HAVE_FORTRAN with the result
@@ -409,6 +415,7 @@ ecbuild_pkgconfig(
   VARIABLES      HAVE_MEMFS HAVE_JPEG HAVE_LIBJASPER HAVE_LIBOPENJPEG
                  HAVE_ECCODES_THREADS HAVE_ECCODES_OMP_THREADS
                  HAVE_NETCDF HAVE_PYTHON HAVE_FORTRAN HAVE_PNG HAVE_AEC
+                 HAVE_CURL
 )
 if( HAVE_FORTRAN )
   ecbuild_pkgconfig(
@@ -421,6 +428,7 @@ if( HAVE_FORTRAN )
     VARIABLES           HAVE_MEMFS HAVE_JPEG HAVE_LIBJASPER HAVE_LIBOPENJPEG
                         HAVE_ECCODES_THREADS HAVE_ECCODES_OMP_THREADS
                         HAVE_NETCDF HAVE_PYTHON HAVE_PNG HAVE_AEC
+                        HAVE_CURL
   )
 endif()
 

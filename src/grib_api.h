@@ -1365,6 +1365,9 @@ void *wmo_read_bufr_from_file_malloc(FILE* f,int headers_only,size_t *size,off_t
 void *wmo_read_grib_from_file_malloc(FILE* f,int headers_only,size_t *size,off_t *offset,int* err);
 int grib_get_message_offset ( grib_handle* h,off_t* offset);
 int grib_get_message_size ( grib_handle* h,size_t* size);
+void *wmo_read_any_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int *err);
+void *wmo_read_grib_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int *err);
+void *wmo_read_bufr_from_url_malloc(void *us, int headers_only, size_t *size, off_t *offset, int *err);
 
 struct grib_points {
     grib_context* context;
