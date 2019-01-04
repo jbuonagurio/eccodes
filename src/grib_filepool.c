@@ -98,7 +98,7 @@ static grib_file* grib_read_file(grib_context *c,FILE* fh,int *err)
     short marker=0;
     short id=0;
     grib_file* file;
-    *err = grib_read_short(fh,&marker);
+    *err = grib_read_short(c,fh,&marker);
     if(!marker) return NULL;
 
     file=(grib_file*)grib_context_malloc_clear(c,sizeof(grib_file));
@@ -106,7 +106,7 @@ static grib_file* grib_read_file(grib_context *c,FILE* fh,int *err)
     file->name=grib_read_string(c,fh,err);
     if (*err) return NULL;
 
-    *err=grib_read_short(fh,&id);
+    *err=grib_read_short(c,fh,&id);
     file->id=id;
     if (*err) return NULL;
 
@@ -121,15 +121,15 @@ static int grib_write_file(FILE *fh,grib_file* file)
     int err=0;
 
     if (!file)
-        return grib_write_null_marker(fh);
+        return grib_write_null_marker(file_pool.context,fh);
 
-    err=grib_write_not_null_marker(fh);
+    err=grib_write_not_null_marker(file_pool.context,fh);
     if (err) return err;
 
-    err=grib_write_string(fh,file->name);
+    err=grib_write_string(file_pool.context,fh,file->name);
     if (err) return err;
 
-    err=grib_write_short(fh,(short)file->id);
+    err=grib_write_short(file_pool.context,fh,(short)file->id);
     if (err) return err;
 
     return grib_write_file(fh,file->next);
@@ -148,7 +148,7 @@ int grib_file_pool_read(grib_context* c,FILE* fh)
 
     if (!c) c=grib_context_get_default();
 
-    err = grib_read_short(fh,&marker);
+    err = grib_read_short(c,fh,&marker);
     if(!marker) {
         grib_context_log(c,GRIB_LOG_ERROR,
                 "Unable to find file information in index file\n");
@@ -171,9 +171,9 @@ int grib_file_pool_write(FILE* fh)
 {
     int err=0;
     if (!file_pool.first)
-        return grib_write_null_marker(fh);
+        return grib_write_null_marker(file_pool.context,fh);
 
-    err=grib_write_not_null_marker(fh);
+    err=grib_write_not_null_marker(file_pool.context,fh);
     if (err) return err;
 
     return grib_write_file(fh,file_pool.first);
@@ -218,16 +218,16 @@ grib_file* grib_file_open(const char* filename, const char* mode,int* err)
     GRIB_MUTEX_LOCK(&mutex1);
     if (!same_mode && file->handle) {
         /*printf("========== mode=%s file->mode=%s\n",mode,file->mode);*/
-        fclose(file->handle);
+        grib_context_close(file_pool.context,file->handle);
     }
 
     if (!file->handle) {
         /*printf("-- opening file %s %s\n",file->name,mode);*/
         if (!is_new && *mode == 'w') {
             /* fprintf(stderr,"++++ opening %s as append\n",file->name); */
-            file->handle = fopen(file->name,"a");
+            file->handle = grib_context_open(file_pool.context,file->name,"a");
         } else {
-            file->handle = fopen(file->name,mode);
+            file->handle = grib_context_open(file_pool.context,file->name,mode);
             /* fprintf(stderr,"++++ opening %s as mode\n",file->name); */
         }
 
@@ -292,12 +292,12 @@ void grib_file_pool_delete_file(grib_file* file) {
 void grib_file_close(const char* filename, int force, int* err)
 {
     grib_file* file=NULL;
-    grib_context* context = grib_context_get_default();
+    if (!file_pool.context) file_pool.context=grib_context_get_default();
 
     /* Performance: keep the files open to avoid opening and closing files when writing the output. */
     /* So only call fclose() when too many files are open. */
     /* Also see ECC-411 */
-    int do_close = (file_pool.number_of_opened_files > context->file_pool_max_opened_files);
+    int do_close = (file_pool.number_of_opened_files > file_pool.context->file_pool_max_opened_files);
     if (force == 1) do_close=1; /* Can be overridden with the force argument */
 
     if ( do_close ) {
@@ -306,7 +306,7 @@ void grib_file_close(const char* filename, int force, int* err)
         GRIB_MUTEX_LOCK(&mutex1);
         file=grib_get_file(filename,err);
         if (file->handle) {
-            if (fclose(file->handle) != 0) {
+            if (grib_context_close(file_pool.context,file->handle) != 0) {
                 *err=GRIB_IO_PROBLEM;
             }
             if (file->buffer) {
@@ -331,7 +331,7 @@ void grib_file_close_all(int *err)
     file = file_pool.first;
     while (file) {
         if (file->handle) {
-            if (fclose(file->handle) != 0) {
+            if (grib_context_close(file->context,file->handle) != 0) {
                 *err=GRIB_IO_PROBLEM;
             }
             file->handle=NULL;
@@ -419,7 +419,7 @@ void grib_file_delete(grib_file* file)
     /* TODO: Set handle to NULL in filepool too */
 #if 0
     if (file->handle) {
-        if (fclose(file->handle) != 0) {
+        if (grib_context_close(file->context,file->handle) != 0) {
             perror(file->name);
         }
     }

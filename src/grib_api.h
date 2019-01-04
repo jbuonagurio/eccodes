@@ -1036,6 +1036,24 @@ typedef void  (*grib_log_proc)      (const grib_context* c, int level, const cha
 */
 typedef void  (*grib_print_proc)    (const grib_context* c, void* descriptor, const char* mesg);
 
+/**
+* Grib data open proc, format of a procedure referenced in the context that is used to open a stream in a resource
+*
+* @param c             : the context where the open will apply
+* @param filename      : the name of the file
+* @param mode          : the file access mode
+* @return              the stream handle, NULL on failure
+*/
+typedef void*    (*grib_data_open_proc) (const grib_context* c, const char* filename, const char* mode);
+
+/**
+* Grib data close proc, format of a procedure referenced in the context that is used to close a stream in a resource
+*
+* @param c             : the context where the close will apply
+* @param stream       : the stream
+* @return              0 if OK, integer value on error
+*/
+typedef int    (*grib_data_close_proc) (const grib_context* c, void *stream);
 
 /**
 * Grib data read proc, format of a procedure referenced in the context that is used to read from a stream in a resource

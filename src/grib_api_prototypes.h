@@ -718,18 +718,18 @@ grib_action *grib_action_create_set_missing(grib_context *context, const char *n
 
 /* grib_index.c */
 int grib_index_compress(grib_index *index);
-int grib_read_uchar(FILE *fh, unsigned char *val);
-int grib_read_short(FILE *fh, short *val);
-int grib_read_long(FILE *fh, long *val);
-int grib_read_unsigned_long(FILE *fh, unsigned long *val);
-int grib_write_uchar(FILE *fh, unsigned char val);
-int grib_write_short(FILE *fh, short val);
-int grib_write_long(FILE *fh, long val);
-int grib_write_unsigned_long(FILE *fh, unsigned long val);
-int grib_write_string(FILE *fh, const char *s);
-int grib_write_identifier(FILE *fh);
-int grib_write_null_marker(FILE *fh);
-int grib_write_not_null_marker(FILE *fh);
+int grib_read_uchar(grib_context* c, FILE *fh, unsigned char *val);
+int grib_read_short(grib_context* c, FILE *fh, short *val);
+int grib_read_long(grib_context* c, FILE *fh, long *val);
+int grib_read_unsigned_long(grib_context* c, FILE *fh, unsigned long *val);
+int grib_write_uchar(grib_context* c, FILE *fh, unsigned char val);
+int grib_write_short(grib_context* c, FILE *fh, short val);
+int grib_write_long(grib_context* c, FILE *fh, long val);
+int grib_write_unsigned_long(grib_context* c, FILE *fh, unsigned long val);
+int grib_write_string(grib_context* c, FILE *fh, const char *s);
+int grib_write_identifier(grib_context* c, FILE *fh);
+int grib_write_null_marker(grib_context* c, FILE *fh);
+int grib_write_not_null_marker(grib_context* c, FILE *fh);
 char *grib_read_string(grib_context *c, FILE *fh, int *err);
 grib_field_tree *grib_read_field_tree(grib_context *c, FILE *fh, grib_file **files, int *err);
 grib_index *grib_index_new(grib_context *c, const char *key, int *err);
@@ -956,6 +956,8 @@ grib_dumper *grib_dump_content_with_dumper(grib_handle *h, grib_dumper *dumper, 
 void codes_dump_bufr_flat(grib_accessors_list *al, grib_handle *h, FILE *f, const char *mode, unsigned long option_flags, void *data);
 
 /* grib_context.c */
+void *grib_context_open(const grib_context *c, const char *filename, const char *mode);
+int grib_context_close(const grib_context *c, void *stream);
 size_t grib_context_read(const grib_context *c, void *ptr, size_t size, void *stream);
 off_t grib_context_tell(const grib_context *c, void *stream);
 int grib_context_seek(const grib_context *c, off_t offset, int whence, void *stream);

@@ -153,6 +153,9 @@
  #endif
 #endif
 
+#ifdef HAVE_VSI
+ #include <cpl_vsi.h>
+#endif
 
 #ifndef HAVE_FSEEKO
  #define fseeko fseek
@@ -1018,6 +1021,8 @@ struct grib_context
     grib_malloc_proc                alloc_buffer_mem;
     grib_realloc_proc               realloc_buffer_mem;
 
+    grib_data_open_proc             open;
+    grib_data_close_proc            close;
     grib_data_read_proc             read;
     grib_data_write_proc            write;
     grib_data_tell_proc             tell;

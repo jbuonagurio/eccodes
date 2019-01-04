@@ -301,23 +301,23 @@ int grib_write_message(grib_handle* h,const char* file,const char* mode)
     int err;
     const void *buffer; size_t size;
 
-    fh=fopen(file,mode);
+    fh=grib_context_open(h->context,file,mode);
     if (!fh) {
         perror(file);
         return GRIB_IO_PROBLEM;
     }
     err=grib_get_message(h,&buffer,&size);
     if (err) {
-        fclose(fh);
+        grib_context_close(h->context,fh);
         return err;
     }
 
-    if(fwrite(buffer,1,size,fh) != size) {
+    if(grib_context_write(h->context,buffer,1,size,fh) != size) {
         perror(file);
-        fclose(fh);
+        grib_context_close(h->context,fh);
         return GRIB_IO_PROBLEM;
     }
-    if (fclose(fh) != 0) {
+    if (grib_context_close(h->context,fh) != 0) {
         perror(file);
         return GRIB_IO_PROBLEM;
     }
@@ -1165,7 +1165,7 @@ int grib_multi_handle_write ( grib_multi_handle* h,FILE* f )
     if ( f==NULL ) return GRIB_INVALID_FILE;
     if ( h==NULL ) return GRIB_INVALID_GRIB;
 
-    if ( fwrite ( h->buffer->data,1,h->buffer->ulength,f ) != h->buffer->ulength )
+    if ( grib_context_write ( h->context, h->buffer->data,1,h->buffer->ulength,f ) != h->buffer->ulength )
     {
         grib_context_log ( h->context,GRIB_LOG_PERROR,"grib_multi_handle_write writing on file" );
         return GRIB_IO_PROBLEM;
@@ -1535,7 +1535,7 @@ void grib_multi_support_reset ( grib_context* c )
     while ( next )
     {
         next=gm->next;
-        if ( gm->file ) fclose ( gm->file );
+        if ( gm->file ) grib_context_close ( c,gm->file );
         if ( gm->message ) grib_context_free ( c,gm->message );
         gm->message=NULL;
         for ( i=0;i<8;i++ ) gm->sections[i]=0;

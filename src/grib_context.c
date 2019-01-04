@@ -135,9 +135,58 @@ static void* default_realloc(const grib_context* c, void* p, size_t size)
 }
 #endif
 
+#ifdef HAVE_VSI
+
+static void* default_open(const grib_context* c, const char* filename, const char* mode)
+{
+    return VSIFOpenL(filename, mode);	
+}
+
+static int default_close(const grib_context* c, void *stream)
+{
+    return VSIFCloseL((VSILFILE*)stream);
+}
+
 static size_t default_read(const grib_context* c, void *ptr, size_t size, void *stream)
 {
-    return fread(ptr,  1, size,  (FILE*)stream);
+    return VSIFReadL(ptr, 1, size, (VSILFILE*)stream);
+}
+
+static off_t default_tell(const grib_context* c, void *stream)
+{
+    return VSIFTellL((VSILFILE*)stream);
+}
+
+static off_t default_seek(const grib_context* c, off_t offset,int whence, void *stream)
+{
+    return VSIFSeekL((VSILFILE*)stream,offset,whence);
+}
+
+static int default_feof(const grib_context* c, void *stream)
+{
+    return VSIFEofL((VSILFILE*)stream);
+}
+
+static size_t default_write(const grib_context* c,const void *ptr, size_t size, void *stream)
+{
+    return VSIFWriteL(ptr, 1, size, (VSILFILE*)stream); 
+}
+
+#else
+
+static void* default_open(const grib_context* c, const char* filename, const char* mode)
+{
+    return fopen(filename, mode);	
+}
+
+static int default_close(const grib_context* c, void *stream)
+{
+    return fclose((FILE*)stream);
+}
+
+static size_t default_read(const grib_context* c, void *ptr, size_t size, void *stream)
+{
+    return fread(ptr, 1, size, (FILE*)stream);
 }
 
 static off_t default_tell(const grib_context* c, void *stream)
@@ -158,6 +207,20 @@ static int default_feof(const grib_context* c, void *stream)
 static size_t default_write(const grib_context* c,const void *ptr, size_t size, void *stream)
 {
     return fwrite(ptr,  1, size,  (FILE*)stream);
+}
+
+#endif /* HAVE_VSI */
+
+void* grib_context_open(const grib_context* c, const char* filename, const char* mode)
+{
+    if (!c) c=grib_context_get_default();
+    return c->open(c, filename, mode);
+}
+
+int grib_context_close(const grib_context* c, void *stream)
+{
+    if (!c) c=grib_context_get_default();
+    return c->close(c, stream);
 }
 
 size_t grib_context_read(const grib_context* c, void *ptr, size_t size, void *stream)
@@ -302,6 +365,8 @@ static grib_context default_grib_context = {
         &default_buffer_realloc,      /* realloc_buffer_mem        */
 #endif
 
+        &default_open,                /* file open procedure        */
+        &default_close,               /* file close procedure       */
         &default_read,                /* file read procedure        */
         &default_write,               /* file write procedure       */
         &default_tell,                /* lfile tell procedure       */
@@ -884,7 +949,7 @@ void grib_context_set_buffer_memory_proc(grib_context* c, grib_malloc_proc m, gr
     c->realloc_buffer_mem = r;
 }
 
-void grib_context_set_data_accessing_proc(grib_context* c, grib_data_read_proc read, grib_data_write_proc write, grib_data_tell_proc             tell)
+void grib_context_set_data_accessing_proc(grib_context* c, grib_data_read_proc read, grib_data_write_proc write, grib_data_tell_proc tell)
 {
     c->read  = read;
     c->write = write;
