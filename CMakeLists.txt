@@ -142,6 +142,12 @@ else()
   set( _will_install_defs_samples ON )
 endif()
 
+ecbuild_add_option( FEATURE VSI
+    DESCRIPTION "Use GDAL Virtual File System API for I/O"
+    DEFAULT OFF
+    REQUIRED_PACKAGES VSI
+)
+
 # controls installation of files in definitions/ -- note that it still creates the symlinks in the build dir
 # by default, if memfs is available, then we don't need to install definitions
 ecbuild_add_option( FEATURE INSTALL_ECCODES_DEFINITIONS

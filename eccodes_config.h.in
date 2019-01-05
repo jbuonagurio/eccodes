@@ -109,6 +109,8 @@
 
 #cmakedefine HAVE_MEMFS
 
+#cmakedefine HAVE_VSI
+
 #ifdef HAVE_MEMFS
 #undef ECCODES_DEFINITION_PATH
 #define ECCODES_DEFINITION_PATH "/MEMFS/definitions"
