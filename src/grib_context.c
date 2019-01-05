@@ -59,6 +59,12 @@ static void init()
 }
 #endif
 
+#ifdef HAVE_VSI
+int GDALIsInGlobalDestructor()
+{
+    return 0;
+}
+#endif
 
 #if MANAGE_MEM
 
