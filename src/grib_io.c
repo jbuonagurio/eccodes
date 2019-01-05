@@ -1096,9 +1096,9 @@ typedef struct user_buffer {
     size_t   buffer_size;
 } user_buffer;
 
-static void* user_provider_buffer(void *data,size_t* length,int *err)
+static void* user_provider_buffer(reader *r,size_t* length,int *err)
 {
-    user_buffer *u  = (user_buffer*)data;
+    user_buffer *u  = (user_buffer*)r->alloc_data;
     *length = u->buffer_size;
     return u->user_buffer;
 }
@@ -1261,9 +1261,9 @@ static size_t stream_read(reader* r,void* buffer,size_t len,int* err)
 /*================== */
 
 
-static void* allocate_buffer(void *data,size_t* length,int *err)
+static void* allocate_buffer(reader *r,size_t* length,int *err)
 {
-    alloc_buffer *u  = (alloc_buffer*)data;
+    alloc_buffer *u  = (alloc_buffer*)r->alloc_data;
     u->buffer = malloc(*length);
     u->size=*length;
     if(u->buffer == NULL)
@@ -1464,9 +1464,9 @@ typedef struct context_alloc_buffer {
     size_t         length;
 } context_alloc_buffer;
 
-static void* context_allocate_buffer(void *data,size_t* length,int *err)
+static void* context_allocate_buffer(reader *r,size_t* length,int *err)
 {
-    context_alloc_buffer *u  = (context_alloc_buffer*)data;
+    context_alloc_buffer *u  = (context_alloc_buffer*)r->alloc_data;
     u->buffer = grib_context_malloc(u->ctx,*length);
     u->length = *length;
 
@@ -1675,7 +1675,7 @@ int grib_count_in_file(grib_context* c, FILE* f,int* n)
 int grib_count_in_filename(grib_context* c, const char* filename, int* n)
 {
     int err=0;
-    FILE* fp = NULL;
+    void* fp = NULL;
     if (!c) c=grib_context_get_default();
     fp = grib_context_open(c, filename, "r");
     if (!fp) {
