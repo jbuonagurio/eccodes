@@ -114,7 +114,7 @@ grib_runtime_options global_options={
 
 };
 
-static grib_handle* grib_handle_new_from_file_x(grib_context* c,FILE* f,int mode,int headers_only,int *err)
+static grib_handle* grib_handle_new_from_file_x(grib_context* c,void* f,int mode,int headers_only,int *err)
 {
     if (mode==MODE_GRIB)
         return grib_new_from_file(c,f,headers_only,err);
@@ -264,7 +264,7 @@ static int grib_tool_with_orderby(grib_runtime_options* options)
     return 0;
 }
 
-char iobuf[1024*1024];
+/* char iobuf[1024*1024]; */
 
 static int grib_tool_without_orderby(grib_runtime_options* options)
 {
@@ -289,7 +289,7 @@ static int grib_tool_without_orderby(grib_runtime_options* options)
         if (strcmp(infile->name,"-")==0)
             infile->file = stdin;
         else
-            infile->file = fopen(infile->name,"r");
+            infile->file = grib_context_open(c,infile->name,"r");
         if(!infile->file) {
             perror(infile->name);
             exit(1);
@@ -299,7 +299,7 @@ static int grib_tool_without_orderby(grib_runtime_options* options)
             /* Check at compile time to ensure our file offset is at least 64 bits */
             COMPILE_TIME_ASSERT( sizeof(options->infile_offset) >= 8 );
 #endif
-            err=fseeko(infile->file, options->infile_offset, SEEK_SET);
+            err=grib_context_seek(c, options->infile_offset, SEEK_SET, infile->file);
             if (err) {
                 /*fprintf(stderr, "Invalid file offset: %ld\n", options->infile_offset);*/
                 perror("Invalid file offset");
@@ -307,7 +307,8 @@ static int grib_tool_without_orderby(grib_runtime_options* options)
             }
         }
 
-        setvbuf(infile->file,iobuf,_IOFBF,sizeof(iobuf));
+        /* TODO: implement grib_context_setvbuf */
+        /* setvbuf(infile->file,iobuf,_IOFBF,sizeof(iobuf)); */
 
         options->file_count++;
         infile->handle_count=0;
@@ -361,7 +362,7 @@ static int grib_tool_without_orderby(grib_runtime_options* options)
 
         grib_print_file_statistics(options,infile);
 
-        if (infile->file) fclose(infile->file);
+        if (infile->file) grib_context_close(c,infile->file);
 
         if (infile->handle_count==0) {
             fprintf(dump_file,"no messages found in %s\n", infile->name);
@@ -1143,7 +1144,7 @@ void grib_tools_write_message(grib_runtime_options* options, grib_handle* h)
 
 #if 0
     if (!options->outfile->file)  {
-        options->outfile->file = fopen(options->outfile->name,"w");
+        options->outfile->file = grib_context_open(h->context,options->outfile->name,"w");
         if(!options->outfile->file) {
             perror(options->outfile->name);
             exit(1);
@@ -1151,9 +1152,9 @@ void grib_tools_write_message(grib_runtime_options* options, grib_handle* h)
     }
     GRIB_CHECK_NOLINE(grib_get_message(h,&buffer,&size),0);
     if (options->gts && h->gts_header)
-        fwrite(h->gts_header,1,h->gts_header_len,options->outfile->file);
+        grib_context_write(h->context,h->gts_header,h->gts_header_len,options->outfile->file);
 
-    if(fwrite(buffer,1,size,options->outfile->file) != size)
+    if(grib_context_write(h->context,buffer,size,options->outfile->file) != size)
     {
         perror(options->outfile->name);
         exit(1);
@@ -1161,7 +1162,7 @@ void grib_tools_write_message(grib_runtime_options* options, grib_handle* h)
 
     if (options->gts && h->gts_header) {
         char gts_trailer[4]={'\x0D','\x0D','\x0A','\x03'};
-        fwrite(gts_trailer,1,4,options->outfile->file);
+        grib_context_write(h->context,gts_trailer,4,options->outfile->file);
     }
 #endif
 
