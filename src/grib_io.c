@@ -1085,7 +1085,7 @@ size_t stdio_read(reader *r, void *buffer, size_t len, int *err)
     if(n != len) {
         /* fprintf(stderr,"Failed to read %d, only got %d\n",len,n); */
         *err = GRIB_IO_PROBLEM;
-        if(n == -1) *err = GRIB_END_OF_FILE;
+        if(grib_context_eof(r->context, r->read_data)) *err = GRIB_END_OF_FILE;
     }
     return n;
 }
