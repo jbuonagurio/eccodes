@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
   grib_handle* h;
   double *outlats,*outlons,*values,*lsm_values,*distances;
   size_t* indexes;
+  grib_context* c=grib_context_get_default();
 
   if (argc < 2) usage(argv[0]);
 
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
 
   for (n=3;n<=argc-1;n++) {
     fname=argv[n];
-    fin=fopen(fname,"r");
+    fin=grib_context_open(c,fname,"r");
     if(!fin) { perror(fname); exit(1); }
     while ((h=grib_handle_new_from_file(0,fin,&ret))!=NULL) {
        grib_get_double_elements(h,"values",indexes,npoints,values);
@@ -97,7 +98,7 @@ int main(int argc, char** argv) {
     }
 
 
-    fclose(fin);
+    grib_context_close(c,fin);
   }
 
 

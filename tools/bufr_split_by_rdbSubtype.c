@@ -135,20 +135,20 @@ static int split_file_by_subtype(FILE* in, const char* filename, unsigned long *
             if (verbose) {
                 if (!file_exists(ofilename)) printf("Writing output to %s\n", ofilename);
             }
-            out=fopen(ofilename,"a");
+            out=grib_context_open(c,ofilename,"a");
             if (!out) {
                 fprintf(stderr,"ERROR: Failed to open output file '%s'\n", ofilename);
                 perror(ofilename);
                 return GRIB_IO_PROBLEM;
             }
-            if (fwrite(mesg,1,size,out)!=size) {
+            if (grib_context_write(c,mesg,size,out)!=size) {
                 fprintf(stderr,"ERROR: Failed to append to file '%s'\n", ofilename);
                 perror(ofilename);
-                fclose(out);
+                grib_context_close(c,out);
                 return GRIB_IO_PROBLEM;
             }
             grib_context_free(c,mesg);
-            fclose(out);
+            grib_context_close(c,out);
             (*count)++;
         }
     }
@@ -166,6 +166,7 @@ int main(int argc,char* argv[])
     struct stat s;
     int err=0;
     unsigned long count=0;
+    grib_context* c=grib_context_get_default();
 
     if (argc!=2 && argc!=3) usage(argv[0]);
 
@@ -183,7 +184,7 @@ int main(int argc,char* argv[])
             return 1;
         }
     }
-    infh=fopen(filename,"r");
+    infh=grib_context_open(c,filename,"r");
     if (!infh) {
         perror(filename);
         return 1;
@@ -199,7 +200,7 @@ int main(int argc,char* argv[])
         if (verbose) printf ("%7lu %s\n", count, filename);
     }
 
-    fclose(infh);
+    grib_context_close(c,infh);
 
     return status;
 }

@@ -8,7 +8,7 @@
  * virtue of its status as an intergovernmental organisation nor does it submit to any jurisdiction.
  */
 
-#include "grib_api.h"
+#include "grib_api_internal.h"
 
 static void usage(const char *prog)
 {
@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
     long intervals[10];
     const char *names[1024];
     int name_count = 0;
+    grib_context *c = grib_context_get_default();
 
     if(argc < 2) usage(argv[0]);
 
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        in = fopen(argv[i],"r");
+        in = grib_context_open(c,argv[i],"r");
         if(!in) {
             perror(argv[i]);
             exit(1);
@@ -136,7 +137,7 @@ int main(int argc, char *argv[])
         }
 
         GRIB_CHECK(e,argv[i]);
-        fclose(in);
+        grib_context_close(c,in);
     }
 
     return 0;

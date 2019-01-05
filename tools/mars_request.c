@@ -25,10 +25,11 @@ int main(int argc, const char *argv[])
 	FILE *in;
 	int e;
 	grib_handle *h;
+    grib_context *c = grib_context_get_default();
 
 	if(argc != 2) usage(argv[0]);
 
-	in = fopen(argv[argc-1],"r");
+	in = grib_context_open(c,argv[argc-1],"r");
 	if(!in) {
 		perror(argv[argc-1]);
 		exit(1);

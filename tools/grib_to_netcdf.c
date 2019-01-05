@@ -1054,7 +1054,7 @@ static err to_expand_mem(field *g)
             return -1;
         }
 
-        fseeko(file->handle, g->offset, SEEK_SET);
+        grib_context_seek(ctx, g->offset, SEEK_SET, file->handle);
 
         g->handle = grib_handle_new_from_file(ctx, file->handle, &e);
         Assert(g->handle);
@@ -4165,7 +4165,7 @@ int grib_tool_new_filename_action(grib_runtime_options* options, const char* fil
     if(!file || !file->handle)
         return e;
 
-    fseeko(file->handle, 0, SEEK_SET);
+    grib_context_seek(ctx, 0, SEEK_SET, file->handle);
 
     files++;
 

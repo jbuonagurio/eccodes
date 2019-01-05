@@ -20,6 +20,7 @@ char buffer[SIZE];
 
 int main(int argc,char **argv)
 {
+    grib_context* c = grib_context_get_default();
     FILE* in, *out, *bad;
     char *cout, *cbad;
 
@@ -29,14 +30,14 @@ int main(int argc,char **argv)
 
     if(argc != 3 && argc != 4) usage(argv[0]);
 
-    in  = fopen(argv[1],"r");
+    in  = grib_context_open(c,argv[1],"r");
     if(!in) {
         perror(argv[1]);
         exit(1);
     }
 
     cout = argv[2];
-    out = fopen(argv[2],"w");
+    out = grib_context_open(c,argv[2],"w");
     if(!out) {
         perror(argv[2]);
         exit(1);
@@ -44,7 +45,7 @@ int main(int argc,char **argv)
 
     if(argc == 4) {
         cbad = argv[3];
-        bad = fopen(argv[3],"w");
+        bad = grib_context_open(c,argv[3],"w");
         if(!bad) {
             perror(argv[3]);
             exit(1);
@@ -66,7 +67,7 @@ int main(int argc,char **argv)
         switch(ret) {
 
         case 0:
-            if(fwrite(buffer,1,len,out) != len) {
+            if(grib_context_write(c,buffer,len,out) != len) {
                 perror(cout);
                 exit(1);
             }
@@ -74,14 +75,14 @@ int main(int argc,char **argv)
 
         case GRIB_WRONG_LENGTH:
         case GRIB_PREMATURE_END_OF_FILE:
-            fseek(in,-4,SEEK_CUR);
+            grib_context_seek(c,-4,SEEK_CUR,in);
             memset(buffer + len - 4, '7', 4);   /* add in 7777 at end */
             len = data_len = SIZE;
             data = (unsigned char*)&buffer[0];
             ret = grib_read_any_from_memory(NULL, &data, &data_len, buffer, &len);
             printf("   -> GRIB %ld: size: %ld code: %ld (%s)\n", count, (long)len, ret, grib_get_error_message(ret));
             if(ret == 0) {
-                if(fwrite(buffer,1,len,bad) != len) {
+                if(grib_context_write(c,buffer,len,bad) != len) {
                     perror(cbad);
                     exit(1);
                 }
@@ -90,18 +91,18 @@ int main(int argc,char **argv)
         }
     }
 
-    if(fclose(in)) {
+    if(grib_context_close(c,in)) {
         perror(argv[1]);
         exit(1);
     }
 
-    if(fclose(out)) {
+    if(grib_context_close(c,out)) {
         perror(argv[2]);
         exit(1);
     }
 
     if(argc == 4) {
-        if(fclose(bad)) {
+        if(grib_context_close(c,bad)) {
             perror(argv[3]);
             exit(1);
         }

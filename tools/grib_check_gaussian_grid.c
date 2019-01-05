@@ -84,13 +84,14 @@ int process_file(const char* filename)
     int err = 0, msg_num = 0;
     codes_handle *h = NULL;
     FILE* in = NULL;
+    grib_context* c = grib_context_get_default();
     
     if (!is_regular_file(filename)) {
         if(verbose) printf(" WARNING: '%s' not a regular file! Ignoring\n", filename);
         return GRIB_IO_PROBLEM;
     }
 
-    in = fopen(filename, "r");
+    in = grib_context_open(c, filename, "r");
     if(!in) {
         fprintf(stderr, "ERROR: unable to open input file %s\n",filename);
         exit(1);
@@ -230,7 +231,7 @@ int process_file(const char* filename)
         free(lats);
         codes_handle_delete(h);
     }
-    fclose(in);
+    grib_context_close(c,in);
     if(verbose) printf("\n");
     return GRIB_SUCCESS;
 }

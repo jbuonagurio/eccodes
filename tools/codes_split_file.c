@@ -42,15 +42,15 @@ static int split_file(FILE* in, const char* filename, const int nchunks, unsigne
     /* name of output file */
     ofilename=(char*)calloc(1,strlen(filename)+10);
 
-    fseeko(in, 0, SEEK_END);
-    insize = ftello(in);
-    fseeko(in, 0, SEEK_SET);
+    grib_context_seek(c, 0, SEEK_END, in);
+    insize = grib_context_tell(c, in);
+    grib_context_seek(c, 0, SEEK_SET, in);
     assert(nchunks > 0);
     chunk_size=insize/nchunks;
 
     i=1;
     sprintf(ofilename, OUTPUT_FILENAME_FORMAT, filename, i);
-    out=fopen(ofilename,"w");
+    out=grib_context_open(c,ofilename,"w");
     if (!out) {
         perror(ofilename);
         free(ofilename);
@@ -60,21 +60,21 @@ static int split_file(FILE* in, const char* filename, const int nchunks, unsigne
     while ( err!=GRIB_END_OF_FILE ) {
         mesg=wmo_read_any_from_file_malloc(in, 0, &size, &offset, &err);
         if (mesg!=NULL && err==0) {
-            if (fwrite(mesg,1,size,out)!=size) {
+            if (grib_context_write(c,mesg,size,out)!=size) {
                 perror(ofilename);
                 free(ofilename);
-                fclose(out);
+                grib_context_close(c,out);
                 return GRIB_IO_PROBLEM;
             }
             grib_context_free(c,mesg);
             read_size+=size;
             if (read_size>chunk_size) {
                 if (verbose) printf("Wrote output file %s\n", ofilename);
-                fclose(out);
+                grib_context_close(c,out);
                 i++;
                 /* Start writing to the next file */
                 sprintf(ofilename, OUTPUT_FILENAME_FORMAT, filename, i);
-                out=fopen(ofilename,"w");
+                out=grib_context_open(c,ofilename,"w");
                 if (!out) {
                     perror(ofilename);
                     free(ofilename);
@@ -86,7 +86,7 @@ static int split_file(FILE* in, const char* filename, const int nchunks, unsigne
         }
     }
     if (verbose) printf("Wrote output file %s\n", ofilename);
-    fclose(out);
+    grib_context_close(c,out);
     free(ofilename);
 
     if (err==GRIB_END_OF_FILE) err=GRIB_SUCCESS;
@@ -102,6 +102,7 @@ int main(int argc,char* argv[])
     struct stat s;
     int err=0,nchunks=0;
     unsigned long count=0;
+    grib_context* c=grib_context_get_default();
 
     if (argc <3) usage(argv[0]);
 
@@ -127,7 +128,7 @@ int main(int argc,char* argv[])
             return 1;
         }
     }
-    infh=fopen(filename,"r");
+    infh=grib_context_open(c,filename,"r");
     if (!infh) {
         perror(filename);
         return 1;
@@ -143,7 +144,7 @@ int main(int argc,char* argv[])
         if (verbose) printf ("%7lu %s\n", count, filename);
     }
 
-    fclose(infh);
+    grib_context_close(c,infh);
 
     return status;
 }

@@ -38,14 +38,14 @@ int main(int argc,char* argv[]) {
 
 	n=0;
 	filename=argv[1];
-	infh=fopen(filename,"r");
+	infh=grib_context_open(c,filename,"r");
 	if (!infh) {
 		perror(filename);
 		exit(1);
 	}
 
 	ofilename=argv[1];
-	outfh=fopen(ofilename,"w");
+	outfh=grib_context_open(c,ofilename,"w");
 	if (!outfh) {
 		perror(ofilename);
 		exit(1);
@@ -78,7 +78,7 @@ int main(int argc,char* argv[]) {
 					"wrong edition %d, skipping message",edition);
 		}
 		if (write) {
-			if(fwrite(omesg,1,osize,outfh) != osize) {
+			if(grib_context_write(c,omesg,osize,outfh) != osize) {
 				perror(ofilename);
 				exit(1);
 			}
@@ -90,8 +90,8 @@ int main(int argc,char* argv[]) {
 	}
 
 
-	fclose(infh);
-	fclose(outfh);
+	grib_context_close(c,infh);
+	grib_context_close(c,outfh);
 
   return error;
 }

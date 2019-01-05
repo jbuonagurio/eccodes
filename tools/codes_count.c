@@ -71,6 +71,7 @@ int main(int argc,char* argv[])
     int err=0, files_processed=0;
     unsigned long count_total=0, count_curr=0;
     int message_type = 0; /* GRIB, BUFR etc */
+    grib_context* c=grib_context_get_default();
 
     if (argc <2) usage(argv[0]);
     
@@ -91,7 +92,7 @@ int main(int argc,char* argv[])
         if (strcmp(filename,"-")==0)
             infh=stdin;
         else
-            infh=fopen(filename,"r");
+            infh=grib_context_open(c,filename,"r");
         if (!infh) {
             perror(filename);
             exit(1);
@@ -106,14 +107,14 @@ int main(int argc,char* argv[])
             exit(err);
 #ifdef DONT_EXIT_ON_BAD_APPLE
             /* If we did not want to fail but warn and continue */
-            fclose(infh);
+            grib_context_close(c,infh);
             continue;
 #endif
         }
         if (verbose) printf ("%7lu %s\n", count_curr, filename);
         count_total += count_curr;
 
-        fclose(infh);
+        grib_context_close(c,infh);
     }
 
     if (!files_processed) usage(argv[0]);

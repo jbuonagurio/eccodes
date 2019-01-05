@@ -25,6 +25,7 @@ void usage(char*);
 int main(int argc, char *argv[])
 {
   grib_handle* h = NULL;
+  grib_context* c=grib_context_get_default();
   FILE* inf = NULL;
   FILE* ouf = NULL;
   char* infile=0;
@@ -37,13 +38,13 @@ int main(int argc, char *argv[])
   infile=argv[1];
   oufile=argv[2];
 
-  inf = fopen(infile,"r");
+  inf = grib_context_open(c,infile,"r");
   if(!inf) {
      perror(infile);
      exit(1);
   }
 
-  ouf = fopen(oufile,"w");
+  ouf = grib_context_open(c,oufile,"w");
   if(!ouf) {
      perror(oufile);
      exit(1);
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
   while((h = grib_handle_new_from_file(0,inf,&err)) != NULL) {
       grib_update_sections_lengths(h);
 	  GRIB_CHECK(grib_get_message(h,&buffer,&size),0);
-	  if(fwrite(buffer,1,size,ouf) != size) {
+	  if(grib_context_write(buffer,size,ouf) != size) {
         perror(oufile);
 		exit(1);
 	  }
@@ -60,12 +61,12 @@ int main(int argc, char *argv[])
 
   grib_handle_delete(h);
 
-  if(fclose(inf)) {
+  if(grib_context_close(c,inf)) {
      perror(infile);
      exit(1);
   }
 
-  if(fclose(ouf)) {
+  if(grib_context_close(c,ouf)) {
      perror(oufile);
      exit(1);
   }

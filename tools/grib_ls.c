@@ -127,13 +127,13 @@ int grib_tool_init(grib_runtime_options* options)
         int idx=0, land_found=0;
         double min_overall = 0.0;
         int idx_overall = -1;
-        f=fopen(options->latlon_mask,"r");
+        f=grib_context_open(options->context,options->latlon_mask,"r");
         if(!f) {
             perror(options->latlon_mask);
             exit(1);
         }
         hh=grib_handle_new_from_file(0,f,&ret);
-        fclose(f);
+        grib_context_close(options->context,f);
         GRIB_CHECK_NOLINE(ret,0);
         n=grib_nearest_new(hh,&ret);
         GRIB_CHECK_NOLINE(ret,0);

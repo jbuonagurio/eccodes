@@ -8,7 +8,7 @@
  * virtue of its status as an intergovernmental organisation nor does it submit to any jurisdiction.
  */
 
-#include "grib_api.h"
+#include "grib_api_internal.h"
 
 #define CMAP_MAX 20480
 
@@ -62,6 +62,7 @@ static int next(FILE *f, char *buf)
 
 int main(int argc, char *argv[])
 {
+    grib_context *c = grib_context_get_default();
     grib_handle *h = NULL;
     FILE *f = NULL;
     int i = 0;
@@ -96,7 +97,7 @@ int main(int argc, char *argv[])
                 break;
 
             case 'm':
-                f = fopen(argv[i + 1], "r");
+                f = grib_context_open(c, argv[i + 1], "r");
                 if (!f)
                 {
                     perror(argv[i + 1]);
@@ -125,14 +126,14 @@ int main(int argc, char *argv[])
                     cmap[cmap_entries].b = b;
                     cmap_entries++;
                 }
-                fclose(f);
+                grib_context_close(c, f);
                 i++;
                 fprintf(stderr, "Number of colours: %d\n", cmap_entries);
             }
             continue;
         }
 
-        f = fopen(argv[i], "r");
+        f = grib_context_open(c, argv[i], "r");
         if (!f)
         {
             perror(argv[i]);
@@ -254,7 +255,7 @@ int main(int argc, char *argv[])
             free(indices);
             break;
         }
-        fclose(f);
+        grib_context_close(c, f);
         if (err)
         {
             fprintf(stderr, "%s\n", grib_get_error_message(err));

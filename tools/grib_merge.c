@@ -352,7 +352,7 @@ int grib_tool_finalise_action(grib_runtime_options* options)
 {
     grib_tools_write_message(options,hh);
     if (options->outfile->file) {
-        fclose(options->outfile->file);
+        grib_context_close(options->context,options->outfile->file);
     }
     return 0;
 }

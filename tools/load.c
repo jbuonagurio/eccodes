@@ -54,6 +54,8 @@ static grib_handle* handle()
 }
 
 void load_finish() { 
+	grib_context* c = grib_context_get_default();
+
 	const void* buffer;
 	size_t size;
 	assert(h);
@@ -61,7 +63,7 @@ void load_finish() {
 
 	printf("%s: writing %ld bytes message\n",prog,(long)size);
 
-	if(fwrite(buffer,1,size,fout) != size)
+	if(grib_context_write(c,buffer,size,fout) != size)
 	{
 		perror(out_file);
 		exit(1);
@@ -166,14 +168,16 @@ int load_error(const char* msg) { printf("%s line %d\n",msg,yylineno); err = 1; 
 
 int load_file(const char* in,const char* out)
 {
+    grib_context* c = grib_context_get_default();
+    
 	err = 0;
-	fout = fopen(out,"w");
+	fout = grib_context_open(c,out,"w");
 	if(!fout) {
 		perror(out);
 		return 1;
 	}
 
-	load_in = fopen(in,"r");
+	load_in = grib_context_open(c,in,"r");
 	if(!load_in) {
 		perror(in);
 		return 1;
@@ -181,8 +185,8 @@ int load_file(const char* in,const char* out)
 
 	load_parse();
 
-	fclose(load_in);
-	if(fclose(fout))
+	grib_context_close(c,load_in);
+	if(grib_context_close(c,fout))
 	{
 		perror(out);
 		return 1;

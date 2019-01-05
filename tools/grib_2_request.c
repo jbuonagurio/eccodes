@@ -17,6 +17,7 @@
 
 int main(int argc, char *argv[])
 {
+    grib_context* c = grib_context_get_default();
 	grib_handle* h = NULL;
 	FILE* f = NULL;
 	int i = 0;
@@ -35,7 +36,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		f = fopen(argv[i],"r");
+		f = grib_context_open(c,argv[i],"r");
 		if(!f) {
 			perror(argv[i]);
 			exit(1);
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
 
 			grib_handle_delete(h);
 		}
-		fclose(f);
+		grib_context_close(c,f);
 		if(err)
 		{
 			fprintf(stderr,"%s\n",grib_get_error_message(err));

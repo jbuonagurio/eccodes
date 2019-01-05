@@ -244,7 +244,7 @@ int grib_tool_init(grib_runtime_options* options)
         }
     } else {
         options->random=0;
-        options->infile_extra->file=fopen(options->infile_extra->name,"r");
+        options->infile_extra->file=grib_context_open(options->context,options->infile_extra->name,"r");
 
         if (!options->infile_extra->file) {
             perror(options->infile_extra->name);

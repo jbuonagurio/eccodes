@@ -41,13 +41,13 @@ int main(int argc, char* argv[]) {
 	infile1=argv[1];
 	infile2=argv[2];
 
-	f1=fopen(infile1,"r");
+	f1=grib_context_open(c,infile1,"r");
 	if (!f1) {
 		perror(infile1);
 		exit(1);
 	}
 
-	f2=fopen(infile2,"r");
+	f2=grib_context_open(c,infile2,"r");
 	if (!f2) {
 		perror(infile2);
 		exit(1);
@@ -134,8 +134,8 @@ int main(int argc, char* argv[]) {
 
 	}
 
-	fclose(f1);
-	fclose(f2);
+	grib_context_close(c,f1);
+	grib_context_close(c,f2);
 
 	return ret;
 }

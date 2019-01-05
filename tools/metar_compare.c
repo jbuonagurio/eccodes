@@ -84,20 +84,20 @@ static void write_message(grib_handle* h,const char* str)
     grib_get_message(h,&m,&s);
     sprintf(fname,"%s_%d.metar",str,write_count);
 
-    fh= fopen(fname,"w");
+    fh = grib_context_open(h->context,fname,"w");
     if(!fh) {
         grib_context_log(h->context,(GRIB_LOG_ERROR)|(GRIB_LOG_PERROR),
                 "Error opening %s",fname);
         exit(GRIB_IO_PROBLEM);
     }
 
-    if(fwrite(m,1,s,fh) != s) {
+    if(grib_context_write(h->context,m,s,fh) != s) {
         grib_context_log(h->context,(GRIB_LOG_ERROR)|(GRIB_LOG_PERROR),
                 "Error writing to %s",fname);
         exit(GRIB_IO_PROBLEM);
     }
 
-    fclose(fh);
+    grib_context_close(h->context,fh);
 }
 
 static void write_messages(grib_handle* h1,grib_handle* h2)
@@ -271,7 +271,7 @@ int grib_tool_init(grib_runtime_options* options)
         }
     } else {
         options->random=0;
-        options->infile_extra->file=fopen(options->infile_extra->name,"r");
+        options->infile_extra->file=grib_context_open(options->context,options->infile_extra->name,"r");
 
         if (!options->infile_extra->file) {
             perror(options->infile_extra->name);
