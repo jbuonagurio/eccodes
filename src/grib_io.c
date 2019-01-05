@@ -1675,7 +1675,7 @@ int grib_count_in_file(grib_context* c, FILE* f,int* n)
 int grib_count_in_filename(grib_context* c, const char* filename, int* n)
 {
     int err=0;
-    void* fp = NULL;
+    FILE* fp = NULL;
     if (!c) c=grib_context_get_default();
     fp = grib_context_open(c, filename, "r");
     if (!fp) {

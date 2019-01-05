@@ -143,12 +143,12 @@ static void* default_realloc(const grib_context* c, void* p, size_t size)
 
 #ifdef HAVE_VSI
 
-static void* default_open(const grib_context* c, const char* filename, const char* mode)
+static FILE* default_open(const grib_context* c, const char* filename, const char* mode)
 {
-    return VSIFOpenL(filename, mode);	
+    return VSIFOpenL(filename, mode);
 }
 
-static int default_close(const grib_context* c, void *stream)
+static int default_close(const grib_context* c, FILE *stream)
 {
     return VSIFCloseL((VSILFILE*)stream);
 }
@@ -180,14 +180,14 @@ static size_t default_write(const grib_context* c,const void *ptr, size_t size, 
 
 #else
 
-static void* default_open(const grib_context* c, const char* filename, const char* mode)
+static FILE* default_open(const grib_context* c, const char* filename, const char* mode)
 {
     return fopen(filename, mode);	
 }
 
-static int default_close(const grib_context* c, void *stream)
+static int default_close(const grib_context* c, FILE *stream)
 {
-    return fclose((FILE*)stream);
+    return fclose(stream);
 }
 
 static size_t default_read(const grib_context* c, void *ptr, size_t size, void *stream)

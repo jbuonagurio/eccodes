@@ -312,7 +312,7 @@ int grib_write_message(grib_handle* h,const char* file,const char* mode)
         return err;
     }
 
-    if(grib_context_write(h->context,buffer,1,size,fh) != size) {
+    if(grib_context_write(h->context,buffer,size,fh) != size) {
         perror(file);
         grib_context_close(h->context,fh);
         return GRIB_IO_PROBLEM;
@@ -1165,7 +1165,7 @@ int grib_multi_handle_write ( grib_multi_handle* h,FILE* f )
     if ( f==NULL ) return GRIB_INVALID_FILE;
     if ( h==NULL ) return GRIB_INVALID_GRIB;
 
-    if ( grib_context_write ( h->context, h->buffer->data,1,h->buffer->ulength,f ) != h->buffer->ulength )
+    if ( grib_context_write ( h->context, h->buffer->data,h->buffer->ulength,f ) != h->buffer->ulength )
     {
         grib_context_log ( h->context,GRIB_LOG_PERROR,"grib_multi_handle_write writing on file" );
         return GRIB_IO_PROBLEM;

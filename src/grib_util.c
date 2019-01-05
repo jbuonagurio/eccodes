@@ -1847,23 +1847,24 @@ int is_productDefinitionTemplateNumber_Aerosol(long productDefinitionTemplateNum
 
 int is_index_file(const char* filename)
 {
+    grib_context* c = grib_context_get_default();
     FILE* fh;
     char buf[8]={0,};
     const char* str="GRBIDX";
     int ret=0;
     size_t size = 0;
 
-    fh=fopen(filename,"r");
+    fh=grib_context_open(c,filename,"r");
     if (!fh) return 0;
 
-    size=fread(buf,1,1,fh);
+    size=grib_context_read(c,buf,1,fh);
     if (size != 1) return 0;
-    size=fread(buf,6,1,fh);
+    size=grib_context_read(c,buf,6,fh);
     if (size != 1) return 0;
 
     ret=!strcmp(buf,str);
 
-    fclose(fh);
+    grib_context_close(c,fh);
 
     return ret;
 }
